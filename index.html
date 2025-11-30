@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>TXT 翻頁電子書</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #f0f0f0;
+        font-family: "Noto Sans TC", sans-serif;
+    }
+
+    body.dark {
+        background: #1a1a1a;
+    }
+    body.dark .page {
+        background: #2a2a2a;
+        color: #e6e6e6;
+    }
+    body.dark .page:nth-child(odd) {
+        background: #242424;
+    }
+    body.dark .font-btn,
+    body.dark .mode-btn {
+        background: rgba(50,50,50,0.85);
+        color: #fff;
+    }
+
+    .book {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+        perspective: 2000px;
+        overflow: hidden;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        padding: 30px;
+        top: 0;
+        left: 0;
+        box-sizing: border-box;
+        background: white;
+        transform-origin: left center;
+        transition: transform 0.6s ease;
+        box-shadow: 0 0 15px rgba(0,0,0,0.25);
+        line-height: 1.8;
+        font-size: 20px;
+        overflow-y: auto;
+    }
+
+    .page.flipped {
+        transform: rotateY(-180deg);
+        z-index: 1 !important;
+    }
+
+    .controls {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        display: flex;
+        gap: 12px;
+        z-index: 999;
+    }
+
+    .font-btn, .mode-btn {
+        background: rgba(255,255,255,0.9);
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-size: 18px;
+        cursor: pointer;
+        user-select: none;
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
+</style>
+</head>
+<body>
+
+<div class="controls">
+    <div class="font-btn" id="fontPlus">A+</div>
+    <div class="font-btn" id="fontMinus">A–</div>
+    <div class="mode-btn" id="modeToggle">🌙</div>
+</div>
+
+<div class="book" id="book"></div>
+
+<script>
+/* ★★★ 修改這裡：從 text.txt 讀取 ★★★ */
+const TEXT_URL = "說點兔赤-來都來了.txt";
+
+/* 下載純文字 */
+async function loadTextFile() {
+    const res = await fetch(TEXT_URL);
+    return await res.text();
+}
+
+/* 自動分頁 */
+function paginateText(text, fontSize = 20) {
+    const pageHeight = window.innerHeight - 60;
+
+    const temp = document.createElement("div");
+    temp.style.position = "absolute";
+    temp.style.visibility = "hidden";
+    temp.style.width = "90%";
+    temp.style.fontSize = fontSize + "px";
+    temp.style.lineHeight = "1.8";
+    temp.style.fontFamily = "Noto Sans TC";
+    document.body.appendChild(temp);
+
+    const lines = text.split("\n");
+    let current = "";
+    let pages = [];
+
+    for (let line of lines) {
+        temp.innerHTML = current + line + "<br>";
+        if (temp.offsetHeight > pageHeight) {
+            pages.push(current);
+            current = line + "<br>";
+        } else {
+            current += line + "<br>";
+        }
+    }
+    pages.push(current);
+
+    temp.remove();
+    return pages;
+}
+
+/* 建立頁面 */
+function buildPages(pages) {
+    const book = document.getElementById("book");
+    book.innerHTML = "";
+
+    pages.forEach((text, i) => {
+        const page = document.createElement("div");
+        page.className = "page";
+        page.style.zIndex = pages.length - i;
+        page.innerHTML = text;
+        book.appendChild(page);
+    });
+}
+
+/* 翻頁 */
+let currentPage = 0;
+
+function attachFlipEvents() {
+    let startX = 0;
+
+    document.addEventListener("touchstart", e => {
+        startX = e.touches[0].clientX;
+    });
+
+    document.addEventListener("touchend", e => {
+        const endX = e.changedTouches[0].clientX;
+        const diff = endX - startX;
+        const pages = document.querySelectorAll(".page");
+
+        if (Math.abs(diff) < 40) return;
+
+        if (diff < 0 && currentPage < pages.length - 1) {
+            pages[currentPage].classList.add("flipped");
+            currentPage++;
+        } else if (diff > 0 && currentPage > 0) {
+            currentPage--;
+            pages[currentPage].classList.remove("flipped");
+        }
+    });
+}
+
+/* 字體調整 */
+let baseFont = 20;
+function applyFont() {
+    document.querySelectorAll(".page").forEach(p => p.style.fontSize = baseFont + "px");
+}
+document.getElementById("fontPlus").onclick = () => { baseFont += 2; applyFont(); };
+document.getElementById("fontMinus").onclick = () => { if (baseFont > 12) baseFont -= 2; applyFont(); };
+
+/* 夜間模式 */
+document.getElementById("modeToggle").onclick = () => {
+    document.body.classList.toggle("dark");
+    document.getElementById("modeToggle").textContent =
+        document.body.classList.contains("dark") ? "☀️" : "🌙";
+};
+
+/* 主程序 */
+(async () => {
+    const text = await loadTextFile();
+    const pages = paginateText(text, baseFont);
+    buildPages(pages);
+    attachFlipEvents();
+})();
+</script>
+
+</body>
+</html>
