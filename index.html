@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>TXT 翻頁電子書</title>
+<title>TXT 翻頁電子書（含進度條）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
@@ -15,6 +15,7 @@
         font-family: "Noto Sans TC", sans-serif;
     }
 
+    /* 夜間模式 */
     body.dark {
         background: #1a1a1a;
     }
@@ -25,10 +26,15 @@
     body.dark .page:nth-child(odd) {
         background: #242424;
     }
-    body.dark .font-btn,
-    body.dark .mode-btn {
-        background: rgba(50,50,50,0.85);
+    body.dark .control-btn {
+        background: rgba(60, 60, 60, 0.7);
         color: #fff;
+    }
+    body.dark #progressBar {
+        background: #888;
+    }
+    body.dark #progressValue {
+        background: #00d2ff;
     }
 
     .book {
@@ -43,7 +49,7 @@
         width: 100%;
         height: 100%;
         position: absolute;
-        padding: 30px;
+        padding: 50px 30px 30px; /* 內容往下移，避免被按鈕擋到 */
         top: 0;
         left: 0;
         box-sizing: border-box;
@@ -61,41 +67,64 @@
         z-index: 1 !important;
     }
 
-    .controls {
+    /* 進度條 */
+    #progressBar {
         position: absolute;
-        top: 15px;
-        right: 15px;
-        display: flex;
-        gap: 12px;
+        top: 0;
+        left: 0;
+        height: 5px;
+        width: 100%;
+        background: #ccc;
         z-index: 999;
     }
 
-    .font-btn, .mode-btn {
-        background: rgba(255,255,255,0.9);
-        padding: 10px 15px;
+    #progressValue {
+        height: 100%;
+        width: 0%;
+        background: #4aa3ff;
+        transition: width 0.3s ease;
+    }
+
+    /* 上方按鈕（文字大小 / 夜間模式） */
+    .controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: flex;
+        gap: 10px;
+        z-index: 999;
+    }
+
+    .control-btn {
+        background: rgba(255,255,255,0.7);
+        padding: 8px 12px;
         border-radius: 8px;
-        font-size: 18px;
+        font-size: 16px;
         cursor: pointer;
         user-select: none;
-        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        backdrop-filter: blur(4px);  /* 半透明不擋字 */
     }
 </style>
 </head>
 <body>
 
+<!-- 進度條 -->
+<div id="progressBar"><div id="progressValue"></div></div>
+
+<!-- 控制按鈕 -->
 <div class="controls">
-    <div class="font-btn" id="fontPlus">A+</div>
-    <div class="font-btn" id="fontMinus">A–</div>
-    <div class="mode-btn" id="modeToggle">🌙</div>
+    <div class="control-btn" id="fontPlus">A+</div>
+    <div class="control-btn" id="fontMinus">A–</div>
+    <div class="control-btn" id="modeToggle">🌙</div>
 </div>
 
 <div class="book" id="book"></div>
 
 <script>
-/* ★★★ 修改這裡：從 text.txt 讀取 ★★★ */
+/* TXT 檔案來源 */
 const TEXT_URL = "說點兔赤-來都來了.txt";
 
-/* 下載純文字 */
+/* 下載文字 */
 async function loadTextFile() {
     const res = await fetch(TEXT_URL);
     return await res.text();
@@ -103,7 +132,7 @@ async function loadTextFile() {
 
 /* 自動分頁 */
 function paginateText(text, fontSize = 20) {
-    const pageHeight = window.innerHeight - 60;
+    const pageHeight = window.innerHeight - 90; // 避開按鈕 + 進度條
 
     const temp = document.createElement("div");
     temp.style.position = "absolute";
@@ -147,8 +176,14 @@ function buildPages(pages) {
     });
 }
 
-/* 翻頁 */
+/* 翻頁功能 */
 let currentPage = 0;
+
+function updateProgress() {
+    const pages = document.querySelectorAll(".page");
+    const percent = (currentPage / (pages.length - 1)) * 100;
+    document.getElementById("progressValue").style.width = percent + "%";
+}
 
 function attachFlipEvents() {
     let startX = 0;
@@ -167,14 +202,16 @@ function attachFlipEvents() {
         if (diff < 0 && currentPage < pages.length - 1) {
             pages[currentPage].classList.add("flipped");
             currentPage++;
+            updateProgress();
         } else if (diff > 0 && currentPage > 0) {
             currentPage--;
             pages[currentPage].classList.remove("flipped");
+            updateProgress();
         }
     });
 }
 
-/* 字體調整 */
+/* 字體大小 */
 let baseFont = 20;
 function applyFont() {
     document.querySelectorAll(".page").forEach(p => p.style.fontSize = baseFont + "px");
@@ -195,6 +232,7 @@ document.getElementById("modeToggle").onclick = () => {
     const pages = paginateText(text, baseFont);
     buildPages(pages);
     attachFlipEvents();
+    updateProgress();
 })();
 </script>
 
