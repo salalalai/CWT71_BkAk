@@ -6,162 +6,138 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-    html, body {
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        overflow: hidden;
-        background: #f0f0f0;
-        font-family: "Noto Sans TC", sans-serif;
-    }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #f0f0f0;
+    font-family: "Noto Sans TC", sans-serif;
+  }
 
-    /* 夜間模式 */
-    body.dark {
-        background: #1a1a1a;
-    }
-    body.dark .page {
-        background: #2a2a2a;
-        color: #e6e6e6;
-    }
-    body.dark .page:nth-child(odd) {
-        background: #242424;
-    }
-    body.dark .control-btn {
-        background: rgba(60, 60, 60, 0.7);
-        color: #fff;
-    }
-    body.dark #progressBar {
-        background: #888;
-    }
-    body.dark #progressValue {
-        background: #00d2ff;
-    }
+  /* 夜間模式 */
+  body.dark { background: #1a1a1a; }
+  body.dark .page { background: #2a2a2a; color: #e6e6e6; }
+  body.dark .page:nth-child(odd) { background: #242424; }
+  body.dark .control-btn { background: rgba(60, 60, 60, 0.7); color: #fff; }
+  body.dark #progressBar { background: #888; }
+  body.dark #progressValue { background: #00d2ff; }
 
-    .book {
-        width: 100vw;
-        height: 100vh;
-        position: relative;
-        perspective: 2000px;
-        overflow: hidden;
-    }
+  .book {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    perspective: 2000px;
+    overflow: hidden;
+  }
 
-    /* 所有頁面共通設定 */
-    .page {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        padding: 50px 30px 30px;
-        top: 0;
-        left: 0;
-        box-sizing: border-box;
-        background: white;
-        transform-origin: left center;
-        transition: transform 0.6s ease;
-        box-shadow: 0 0 15px rgba(0,0,0,0.25);
-        overflow-y: auto;
-    }
+  /* 所有頁面共通設定 */
+  .page {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    padding: 50px 30px 30px;
+    top: 0;
+    left: 0;
+    box-sizing: border-box;
+    background: white;
+    transform-origin: left center;
+    transition: transform 0.6s ease;
+    box-shadow: 0 0 15px rgba(0,0,0,0.25);
+    overflow-y: auto;
+    line-height: 1.8;
+    font-size: 20px;
+  }
 
-    .page.flipped {
-        transform: rotateY(-180deg);
-        z-index: 1 !important;
-    }
+  .page.flipped {
+    transform: rotateY(-180deg);
+    z-index: 1 !important;
+  }
 
-    /* 封面頁特殊樣式 */
-    .cover {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-        font-size: 28px;
-        padding-top: 0 !important;
-    }
+  /* ✅ 封面頁：整頁滿版圖片 */
+  .cover {
+    padding: 0 !important;
+    background: black;
+    overflow: hidden;
+  }
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 等比例裁切鋪滿 */
+    display: block;
+  }
 
-    .cover img {
-        max-width: 70%;
-        border-radius: 12px;
-        margin-bottom: 20px;
-    }
+  /* 進度條 */
+  #progressBar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 5px;
+    width: 100%;
+    background: #ccc;
+    z-index: 999;
+  }
+  #progressValue {
+    height: 100%;
+    width: 0%;
+    background: #4aa3ff;
+    transition: width 0.3s ease;
+  }
 
-    /* 進度條 */
-    #progressBar {
-        position: absolute;
-        top: 0;
-        left: 0;
-        height: 5px;
-        width: 100%;
-        background: #ccc;
-        z-index: 999;
-    }
-
-    #progressValue {
-        height: 100%;
-        width: 0%;
-        background: #4aa3ff;
-        transition: width 0.3s ease;
-    }
-
-    /* 控制按鈕 */
-    .controls {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        display: flex;
-        gap: 10px;
-        z-index: 999;
-    }
-
-    .control-btn {
-        background: rgba(255,255,255,0.7);
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-size: 16px;
-        cursor: pointer;
-        user-select: none;
-        backdrop-filter: blur(4px);
-    }
+  /* 控制按鈕 */
+  .controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 10px;
+    z-index: 999;
+  }
+  .control-btn {
+    background: rgba(255,255,255,0.7);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none;
+    backdrop-filter: blur(4px);
+  }
 </style>
 </head>
+
 <body>
+  <!-- 進度條 -->
+  <div id="progressBar"><div id="progressValue"></div></div>
 
-<!-- 進度條 -->
-<div id="progressBar"><div id="progressValue"></div></div>
-
-<!-- 控制按鈕 -->
-<div class="controls">
+  <!-- 控制按鈕 -->
+  <div class="controls">
     <div class="control-btn" id="fontPlus">A+</div>
     <div class="control-btn" id="fontMinus">A–</div>
     <div class="control-btn" id="modeToggle">🌙</div>
-</div>
+  </div>
 
-<div class="book" id="book"></div>
+  <div class="book" id="book"></div>
 
 <script>
-const TEXT_URL = "說點兔赤-來都來了.txt";
+  const TEXT_URL = "說點兔赤-來都來了.txt";
 
-/* ★ 封面頁內容（你可以改 HTML） ★ */
-function createCoverPage() {
+  /* ✅ 封面頁（獨立，不來自 txt） */
+  function createCoverPage() {
     const cover = document.createElement("div");
     cover.className = "page cover";
     cover.style.zIndex = 9999;
-
-    cover.innerHTML = `
-        <img src="cover.jpg" alt="封面圖片">
-        <div style="font-size: 32px; margin-bottom: 10px;">你的書名</div>
-        <div style="font-size: 20px; opacity: 0.8;">作者：你自己</div>
-        <div style="margin-top:20px; font-size:16px; opacity:.6;">滑動開始閱讀</div>
-    `;
+    cover.innerHTML = `<img src="cover.png" alt="封面">`;
     return cover;
-}
+  }
 
-/* 下載 TXT */
-async function loadTextFile() {
+  /* 下載 TXT */
+  async function loadTextFile() {
     const res = await fetch(TEXT_URL);
     return await res.text();
-}
+  }
 
-/* 自動分頁 */
-function paginateText(text, fontSize = 20) {
+  /* 自動分頁 */
+  function paginateText(text, fontSize = 20) {
     const pageHeight = window.innerHeight - 90;
 
     const temp = document.createElement("div");
@@ -178,99 +154,99 @@ function paginateText(text, fontSize = 20) {
     let pages = [];
 
     for (let line of lines) {
-        temp.innerHTML = current + line + "<br>";
-        if (temp.offsetHeight > pageHeight) {
-            pages.push(current);
-            current = line + "<br>";
-        } else {
-            current += line + "<br>";
-        }
+      temp.innerHTML = current + line + "<br>";
+      if (temp.offsetHeight > pageHeight) {
+        pages.push(current);
+        current = line + "<br>";
+      } else {
+        current += line + "<br>";
+      }
     }
 
     pages.push(current);
     temp.remove();
     return pages;
-}
+  }
 
-/* 建立頁面 */
-function buildPages(pages) {
+  /* 建立頁面 */
+  function buildPages(pages) {
     const book = document.getElementById("book");
     book.innerHTML = "";
 
-    /* 1. 先加入封面頁 */
+    // 1) 封面
     const cover = createCoverPage();
     book.appendChild(cover);
 
-    /* 2. 再加入文字頁 */
+    // 2) 正文頁
     pages.forEach((text, i) => {
-        const page = document.createElement("div");
-        page.className = "page";
-        page.style.zIndex = pages.length - i;
-        page.innerHTML = text;
-        book.appendChild(page);
+      const page = document.createElement("div");
+      page.className = "page";
+      page.style.zIndex = pages.length - i;
+      page.innerHTML = text;
+      book.appendChild(page);
     });
-}
+  }
 
-/* 翻頁控制 */
-let currentPage = 0;
+  /* 翻頁控制 */
+  let currentPage = 0;
 
-function updateProgress() {
+  function updateProgress() {
     const totalPages = document.querySelectorAll(".page").length - 1; // 不含封面
-    const percent = (currentPage / totalPages) * 100;
+    const percent = totalPages <= 0 ? 0 : (currentPage / totalPages) * 100;
     document.getElementById("progressValue").style.width = percent + "%";
-}
+  }
 
-function attachFlipEvents() {
+  function attachFlipEvents() {
     let startX = 0;
 
     document.addEventListener("touchstart", e => {
-        startX = e.touches[0].clientX;
+      startX = e.touches[0].clientX;
     });
 
     document.addEventListener("touchend", e => {
-        const endX = e.changedTouches[0].clientX;
-        const diff = endX - startX;
-        const pages = document.querySelectorAll(".page");
+      const endX = e.changedTouches[0].clientX;
+      const diff = endX - startX;
+      const pages = document.querySelectorAll(".page");
 
-        if (Math.abs(diff) < 40) return;
+      if (Math.abs(diff) < 40) return;
 
-        if (diff < 0 && currentPage < pages.length - 1) {
-            pages[currentPage].classList.add("flipped");
-            currentPage++;
-            updateProgress();
-        } else if (diff > 0 && currentPage > 0) {
-            currentPage--;
-            pages[currentPage].classList.remove("flipped");
-            updateProgress();
-        }
+      if (diff < 0 && currentPage < pages.length - 1) {
+        pages[currentPage].classList.add("flipped");
+        currentPage++;
+        updateProgress();
+      } else if (diff > 0 && currentPage > 0) {
+        currentPage--;
+        pages[currentPage].classList.remove("flipped");
+        updateProgress();
+      }
     });
-}
+  }
 
-/* 字體調整 */
-let baseFont = 20;
-function applyFont() {
-    document.querySelectorAll(".page:not(.cover)").forEach(
-        p => p.style.fontSize = baseFont + "px"
-    );
-}
-document.getElementById("fontPlus").onclick = () => { baseFont += 2; applyFont(); };
-document.getElementById("fontMinus").onclick = () => { if (baseFont > 12) baseFont -= 2; applyFont(); };
+  /* 字體調整 */
+  let baseFont = 20;
+  function applyFont() {
+    document.querySelectorAll(".page:not(.cover)").forEach(p => {
+      p.style.fontSize = baseFont + "px";
+    });
+  }
+  document.getElementById("fontPlus").onclick = () => { baseFont += 2; applyFont(); };
+  document.getElementById("fontMinus").onclick = () => { if (baseFont > 12) baseFont -= 2; applyFont(); };
 
-/* 夜間模式 */
-document.getElementById("modeToggle").onclick = () => {
+  /* 夜間模式 */
+  document.getElementById("modeToggle").onclick = () => {
     document.body.classList.toggle("dark");
     document.getElementById("modeToggle").textContent =
-        document.body.classList.contains("dark") ? "☀️" : "🌙";
-};
+      document.body.classList.contains("dark") ? "☀️" : "🌙";
+  };
 
-/* 主程序 */
-(async () => {
+  /* 主程序 */
+  (async () => {
     const text = await loadTextFile();
     const pages = paginateText(text, baseFont);
     buildPages(pages);
     attachFlipEvents();
     updateProgress();
-})();
+  })();
 </script>
 
 </body>
