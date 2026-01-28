@@ -2,38 +2,156 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<title>PDF 翻頁電子書（快速懶加載）</title>
+<title>PDF 翻頁電子書（低清預覽→高清補渲染）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 
 <style>
-  html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#f0f0f0; font-family:"Noto Sans TC", sans-serif; }
-  body.dark { background:#111; }
-  body.dark #progressBar { background:#555; }
-  body.dark #progressValue { background:#00d2ff; }
-  body.dark .control-btn { background: rgba(60,60,60,.72); color:#fff; }
-  body.dark #loading { color:#bbb; }
-  body.dark .modal { background: rgba(40,40,40,.92); color:#fff; }
-  body.dark .btn-no { background: rgba(255,255,255,.12); color:#fff; }
-
-  .book { width:100vw; height:100vh; position:relative; perspective:2000px; overflow:hidden; }
-  .page {
-    width:100%; height:100%;
-    position:absolute; top:0; left:0;
-    background:#fff;
-    transform-origin:left center;
-    transition:transform .6s ease;
-    box-shadow:0 0 15px rgba(0,0,0,.25);
-    display:flex; justify-content:center; align-items:center;
-    overflow:hidden;
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #f0f0f0;
+    font-family: "Noto Sans TC", sans-serif;
   }
-  .page.flipped { transform: rotateY(-180deg); z-index:1 !important; }
 
-  .cover { background:#000; }
-  .cover img { width:100%; height:100%; object-fit:cover; display:block; }
+  .book {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    perspective: 2000px;
+    overflow: hidden;
+  }
 
-  .pdf-canvas { max-width:100%; max-height:100%; width:auto; height:auto; display:block; }
+  .page {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+    background: #fff;
+    transform-origin: left center;
+    transition: transform 0.6s ease;
+    box-shadow: 0 0 15px rgba(0,0,0,0.25);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
 
-  /* 未渲染占位 */
+  .page.flipped {
+    transform: rotateY(-180deg);
+    z-index: 1 !important;
+  }
+
+  /* 封面：滿版 */
+  .cover { background: #000; }
+  .cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Canvas RWD：保持比例塞進視窗 */
+  .pdf-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
+  }
+
+  /* 低清→高清時的淡入 */
+  .fade-in {
+    animation: fadeIn 160ms ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0.4; }
+    to   { opacity: 1; }
+  }
+
+  /* 進度條 */
+  #progressBar {
+    position: absolute;
+    top: 0; left: 0;
+    height: 5px;
+    width: 100%;
+    background: #ccc;
+    z-index: 999;
+  }
+  #progressValue {
+    height: 100%;
+    width: 0%;
+    background: #4aa3ff;
+    transition: width 0.25s ease;
+  }
+
+  /* 小小的「載入中」提示（可選） */
+  #hint {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    font-size: 12px;
+    color: rgba(0,0,0,0.55);
+    z-index: 999;
+    pointer-events: none;
+  }
+
+  /* 18+ Modal */
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5000;
+    padding: 20px;
+  }
+  .modal {
+    width: min(420px, 100%);
+    background: rgba(255,255,255,0.92);
+    border-radius: 16px;
+    padding: 18px 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+  }
+  .modal h3 { margin: 0 0 8px; font-size: 18px; }
+  .modal p { margin: 0 0 14px; font-size: 14px; line-height: 1.6; opacity: 0.9; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn {
+    border: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+  }
+  .btn-yes { background: #4aa3ff; color: #fff; }
+  .btn-no  { background: rgba(0,0,0,0.08); }
+
+  /* 未滿 18 拒絕畫面 */
+  .blocked {
+    position: absolute;
+    inset: 0;
+    z-index: 4000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: #111;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+  }
+  .blocked .box {
+    max-width: 520px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 18px 16px;
+    line-height: 1.7;
+  }
+
+  /* Placeholder */
   .placeholder {
     width: 100%;
     height: 100%;
@@ -45,57 +163,13 @@
     padding:20px;
     text-align:center;
   }
-
-  #progressBar { position:absolute; top:0; left:0; height:5px; width:100%; background:#ccc; z-index:999; }
-  #progressValue { height:100%; width:0%; background:#4aa3ff; transition: width .25s ease; }
-
-  .controls { position:absolute; top:10px; right:10px; display:flex; gap:10px; z-index:999; }
-  .control-btn {
-    background: rgba(255,255,255,.72);
-    padding:8px 12px;
-    border-radius:8px;
-    font-size:16px;
-    cursor:pointer;
-    user-select:none;
-    backdrop-filter: blur(4px);
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  #loading {
-    position:absolute; inset:0;
-    display:none;
-    justify-content:center; align-items:center;
-    font-size:16px; color:#666;
-    z-index:998;
-    pointer-events:none;
-  }
-
-  /* 18+ modal */
-  .modal-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.55); display:flex; justify-content:center; align-items:center; z-index:5000; padding:20px; }
-  .modal { width:min(420px,100%); background:rgba(255,255,255,.92); border-radius:16px; padding:18px 16px; box-shadow:0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(8px); }
-  .modal h3 { margin:0 0 8px; font-size:18px; }
-  .modal p { margin:0 0 14px; font-size:14px; line-height:1.6; opacity:.9; }
-  .modal-actions { display:flex; gap:10px; justify-content:flex-end; }
-  .btn { border:0; padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14px; user-select:none; }
-  .btn-yes { background:#4aa3ff; color:#fff; }
-  .btn-no { background: rgba(0,0,0,.08); }
-
-  .blocked { position:absolute; inset:0; z-index:4000; display:none; justify-content:center; align-items:center; background:#111; color:#fff; text-align:center; padding:20px; }
-  .blocked .box { max-width:520px; background:rgba(255,255,255,.08); border-radius:16px; padding:18px 16px; line-height:1.7; }
 </style>
 </head>
 
 <body>
   <div id="progressBar"><div id="progressValue"></div></div>
-
-  <div class="controls">
-    <div class="control-btn" id="zoomOut">A–</div>
-    <div class="control-btn" id="zoomIn">A+</div>
-    <div class="control-btn" id="modeToggle">🌙</div>
-  </div>
-
   <div class="book" id="book"></div>
-  <div id="loading">渲染中…</div>
+  <div id="hint" style="display:none;">載入中…</div>
 
   <div id="ageModalRoot"></div>
   <div class="blocked" id="blocked">
@@ -112,37 +186,49 @@
 
 <script>
   // ====== 設定 ======
-  const PDF_URL = "說點兔赤-來都來了.pdf";
+  const PDF_URL   = "說點兔赤-來都來了.pdf";
   const COVER_URL = "cover.png";
 
-  let renderScale = 1.6;
-  const SCALE_MIN = 0.8, SCALE_MAX = 2.6, SCALE_STEP = 0.2;
+  // 低清 / 高清倍率
+  const LOW_SCALE  = 0.9;  // 很快
+  const HIGH_SCALE = 1.8;  // 清晰（可依你 PDF 大小調整 1.6~2.2）
 
-  // 渲染策略：只維持「當前頁前後各 1 頁」已渲染
+  // 停留多久後補高清（ms）
+  const UPGRADE_DELAY = 250;
+
+  // 預抓半徑（前後頁）
   const PREFETCH_RADIUS = 1;
 
   // ====== 狀態 ======
   const book = document.getElementById("book");
-  const loading = document.getElementById("loading");
+  const hint = document.getElementById("hint");
   const blocked = document.getElementById("blocked");
+
   let allowed = false;
 
   let pdfDoc = null;
   let totalPdfPages = 0;
 
-  // currentIndex：包含封面
-  // 0 = 封面；1..N = PDF 第 1..N 頁
+  // 0=封面；1..N=PDF頁
   let currentIndex = 0;
 
-  // pagesDom[0] = 封面；pagesDom[i] = PDF 第 i 頁（i>=1）
+  // DOM：pagesDom[0]=封面；pagesDom[i]=PDF 第 i 頁容器
   let pagesDom = [];
-  // rendered[i] 表示 PDF 第 i 頁（i>=1）是否已渲染
-  let rendered = [];
-  // 避免同頁重複渲染
-  let renderingSet = new Set();
+
+  // 每頁渲染狀態：0=未渲染，1=已低清，2=已高清
+  let quality = [];
+
+  // 防重複渲染
+  let rendering = new Set();
+
+  // 每頁的「補高清計時器」
+  let upgradeTimers = [];
 
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-  function showLoading(show) { loading.style.display = show ? "flex" : "none"; }
+
+  function setHint(show) {
+    hint.style.display = show ? "block" : "none";
+  }
 
   function updateProgress() {
     const totalWithoutCover = Math.max(1, pagesDom.length - 1);
@@ -184,7 +270,7 @@
     else showAgeModal();
   }
 
-  // ====== PDF.js ======
+  // ====== PDF ======
   async function loadPDF() {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -200,33 +286,30 @@
     return cover;
   }
 
-  function makePdfPlaceholder(pageNum) {
+  function makePlaceholder(pageNum) {
     const wrap = document.createElement("div");
     wrap.className = "page";
-    wrap.innerHTML = `<div class="placeholder">PDF 第 ${pageNum} 頁尚未渲染，翻到這頁會自動載入。</div>`;
+    wrap.innerHTML = `<div class="placeholder">PDF 第 ${pageNum} 頁</div>`;
     return wrap;
   }
 
-  function buildPageStack() {
+  function buildStack() {
     book.innerHTML = "";
     pagesDom = [];
-    rendered = new Array(totalPdfPages + 1).fill(false);
+    quality = new Array(totalPdfPages + 1).fill(0);
+    upgradeTimers = new Array(totalPdfPages + 1).fill(null);
 
-    // 0:封面
-    const cover = makeCover();
-    pagesDom[0] = cover;
-    book.appendChild(cover);
+    // 封面
+    pagesDom[0] = makeCover();
+    book.appendChild(pagesDom[0]);
 
-    // 1..N:PDF placeholder
+    // PDF pages placeholders
     for (let i = 1; i <= totalPdfPages; i++) {
-      const pageWrap = makePdfPlaceholder(i);
-      // z-index：越前面越大（封面最高）
-      pageWrap.style.zIndex = (totalPdfPages - i + 1);
-      pagesDom[i] = pageWrap;
-      book.appendChild(pageWrap);
+      pagesDom[i] = makePlaceholder(i);
+      pagesDom[i].style.zIndex = (totalPdfPages - i + 1);
+      book.appendChild(pagesDom[i]);
     }
 
-    // 初始在封面
     currentIndex = 0;
     applyFlipState();
     updateProgress();
@@ -239,20 +322,38 @@
     }
   }
 
-  async function renderPdfPage(pageNum) {
-    if (pageNum < 1 || pageNum > totalPdfPages) return;
-    if (rendered[pageNum]) return;
-    if (renderingSet.has(pageNum)) return;
+  function clearUpgradeTimer(pageNum) {
+    if (upgradeTimers[pageNum]) {
+      clearTimeout(upgradeTimers[pageNum]);
+      upgradeTimers[pageNum] = null;
+    }
+  }
 
-    renderingSet.add(pageNum);
-    showLoading(true);
+  function scheduleHighResUpgrade(pageNum) {
+    clearUpgradeTimer(pageNum);
+    upgradeTimers[pageNum] = setTimeout(() => {
+      // 只有當這頁還在附近（或就是當前頁）才補高清
+      // 這樣快速翻頁時不浪費資源
+      if (Math.abs(pageNum - currentIndex) <= PREFETCH_RADIUS) {
+        renderPage(pageNum, HIGH_SCALE, 2);
+      }
+    }, UPGRADE_DELAY);
+  }
+
+  async function renderPage(pageNum, scale, targetQuality) {
+    if (pageNum < 1 || pageNum > totalPdfPages) return;
+    if (quality[pageNum] >= targetQuality) return;
+    if (rendering.has(`${pageNum}-${targetQuality}`)) return;
+
+    rendering.add(`${pageNum}-${targetQuality}`);
+    setHint(true);
 
     try {
       const pdfPage = await pdfDoc.getPage(pageNum);
-      const viewport = pdfPage.getViewport({ scale: renderScale });
+      const viewport = pdfPage.getViewport({ scale });
 
       const canvas = document.createElement("canvas");
-      canvas.className = "pdf-canvas";
+      canvas.className = "pdf-canvas fade-in";
       const ctx = canvas.getContext("2d");
 
       canvas.width = Math.floor(viewport.width);
@@ -260,44 +361,37 @@
 
       await pdfPage.render({ canvasContext: ctx, viewport }).promise;
 
-      // 放進該頁容器，替換 placeholder
+      // 覆蓋該頁內容
       const wrap = pagesDom[pageNum];
       wrap.innerHTML = "";
       wrap.appendChild(canvas);
 
-      rendered[pageNum] = true;
+      quality[pageNum] = targetQuality;
+
+      // 若剛剛渲染的是低清，排程補高清（但只在停留時做）
+      if (targetQuality === 1) scheduleHighResUpgrade(pageNum);
+
     } finally {
-      renderingSet.delete(pageNum);
-      // 如果還有其他頁在渲染，就不要關
-      if (renderingSet.size === 0) showLoading(false);
+      rendering.delete(`${pageNum}-${targetQuality}`);
+      if (rendering.size === 0) setHint(false);
     }
   }
 
-  async function ensureNearbyRendered() {
-    // currentIndex=0 是封面，對應 PDF 不需要渲染
-    const center = currentIndex; // 1..N
+  async function ensureLowResNearby() {
+    const center = currentIndex;
     const tasks = [];
 
     for (let i = center - PREFETCH_RADIUS; i <= center + PREFETCH_RADIUS; i++) {
-      if (i >= 1 && i <= totalPdfPages) tasks.push(renderPdfPage(i));
+      if (i >= 1 && i <= totalPdfPages) {
+        // 先確保低清
+        if (quality[i] === 0) tasks.push(renderPage(i, LOW_SCALE, 1));
+        else if (quality[i] === 1) scheduleHighResUpgrade(i);
+      }
     }
     await Promise.all(tasks);
   }
 
-  // 縮放：只重繪「附近頁」即可（不重繪整本）
-  async function rerenderNearby() {
-    // 將附近頁設為未渲染並恢復 placeholder，再渲染
-    const center = currentIndex;
-    for (let i = center - PREFETCH_RADIUS; i <= center + PREFETCH_RADIUS; i++) {
-      if (i >= 1 && i <= totalPdfPages) {
-        rendered[i] = false;
-        pagesDom[i].innerHTML = `<div class="placeholder">重新渲染 PDF 第 ${i} 頁…</div>`;
-      }
-    }
-    await ensureNearbyRendered();
-  }
-
-  // ====== 手勢翻頁 ======
+  // ====== 翻頁手勢 ======
   function attachFlipEvents() {
     let startX = 0;
 
@@ -319,8 +413,8 @@
         currentIndex++;
         updateProgress();
 
-        // 翻到 PDF 頁就渲染並預抓附近頁
-        if (currentIndex >= 1) await ensureNearbyRendered();
+        // 進入 PDF 頁：先低清秒出，再視停留補高清
+        if (currentIndex >= 1) await ensureLowResNearby();
       }
       // 右滑上一頁
       else if (diff > 0 && currentIndex > 0) {
@@ -328,46 +422,23 @@
         pagesDom[currentIndex].classList.remove("flipped");
         updateProgress();
 
-        if (currentIndex >= 1) await ensureNearbyRendered();
+        if (currentIndex >= 1) await ensureLowResNearby();
       }
     }, { passive: true });
   }
 
-  // ====== 控制 ======
-  document.getElementById("modeToggle").onclick = () => {
-    document.body.classList.toggle("dark");
-    document.getElementById("modeToggle").textContent =
-      document.body.classList.contains("dark") ? "☀️" : "🌙";
-  };
-
-  document.getElementById("zoomIn").onclick = async () => {
-    if (!allowed) return;
-    renderScale = clamp(renderScale + SCALE_STEP, SCALE_MIN, SCALE_MAX);
-    if (currentIndex >= 1) await rerenderNearby();
-  };
-
-  document.getElementById("zoomOut").onclick = async () => {
-    if (!allowed) return;
-    renderScale = clamp(renderScale - SCALE_STEP, SCALE_MIN, SCALE_MAX);
-    if (currentIndex >= 1) await rerenderNearby();
-  };
-
   // ====== 主流程 ======
   async function initApp() {
     try {
-      showLoading(true);
       await loadPDF();
-      buildPageStack();
-
+      buildStack();
       attachFlipEvents();
 
-      // 初次只渲染「第 1 頁」讓你一翻封面就秒出現
-      await renderPdfPage(1);
-      showLoading(false);
+      // 先把第 1 頁做低清，封面翻過去就秒出
+      await renderPage(1, LOW_SCALE, 1);
     } catch (err) {
       console.error(err);
       alert("PDF 載入失敗：請確認 book.pdf 與 index.html 同資料夾，並使用 http server 開啟。");
-      showLoading(false);
     }
   }
 
