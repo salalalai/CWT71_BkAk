@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<title>TXT 翻頁電子書（含封面）</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta charset="UTF-8" />
+<title>說點兔赤-來都來了</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 
 <style>
   html, body {
@@ -15,13 +15,15 @@
     font-family: "Noto Sans TC", sans-serif;
   }
 
-  /* 夜間模式 */
-  body.dark { background: #1a1a1a; }
-  body.dark .page { background: #2a2a2a; color: #e6e6e6; }
-  body.dark .page:nth-child(odd) { background: #242424; }
-  body.dark .control-btn { background: rgba(60, 60, 60, 0.7); color: #fff; }
-  body.dark #progressBar { background: #888; }
+  /* 夜間模式（只影響背景/控制列，不改 PDF 畫面本身） */
+  body.dark { background: #111; }
+  body.dark #progressBar { background: #555; }
   body.dark #progressValue { background: #00d2ff; }
+  body.dark .control-btn {
+    background: rgba(60, 60, 60, 0.72);
+    color: #fff;
+  }
+  body.dark #loading { color: #bbb; }
 
   .book {
     width: 100vw;
@@ -31,22 +33,21 @@
     overflow: hidden;
   }
 
-  /* 所有頁面共通設定 */
+  /* 共通頁面 */
   .page {
     width: 100%;
     height: 100%;
     position: absolute;
-    padding: 50px 30px 30px;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
     box-sizing: border-box;
-    background: white;
+    background: #fff;
     transform-origin: left center;
     transition: transform 0.6s ease;
     box-shadow: 0 0 15px rgba(0,0,0,0.25);
-    overflow-y: auto;
-    line-height: 1.8;
-    font-size: 20px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 
   .page.flipped {
@@ -54,24 +55,28 @@
     z-index: 1 !important;
   }
 
-  /* ✅ 封面頁：整頁滿版圖片 */
-  .cover {
-    padding: 0 !important;
-    background: black;
-    overflow: hidden;
-  }
+  /* 封面：滿版 */
+  .cover { padding: 0 !important; background: #000; }
   .cover img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 等比例裁切鋪滿 */
+    object-fit: cover;
+    display: block;
+  }
+
+  /* PDF canvas：RWD 縮放到視窗內保持比例 */
+  .pdf-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
     display: block;
   }
 
   /* 進度條 */
   #progressBar {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 0; left: 0;
     height: 5px;
     width: 100%;
     background: #ccc;
@@ -81,10 +86,10 @@
     height: 100%;
     width: 0%;
     background: #4aa3ff;
-    transition: width 0.3s ease;
+    transition: width 0.25s ease;
   }
 
-  /* 控制按鈕 */
+  /* 控制按鈕（右上角） */
   .controls {
     position: absolute;
     top: 10px;
@@ -94,13 +99,88 @@
     z-index: 999;
   }
   .control-btn {
-    background: rgba(255,255,255,0.7);
+    background: rgba(255,255,255,0.72);
     padding: 8px 12px;
     border-radius: 8px;
     font-size: 16px;
     cursor: pointer;
     user-select: none;
     backdrop-filter: blur(4px);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .control-btn:active { transform: scale(0.98); }
+
+  /* 載入中提示 */
+  #loading {
+    position: absolute;
+    inset: 0;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    color: #666;
+    z-index: 998;
+    pointer-events: none;
+  }
+
+  /* 18+ 彈窗 */
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5000;
+    padding: 20px;
+  }
+  .modal {
+    width: min(420px, 100%);
+    background: rgba(255,255,255,0.92);
+    border-radius: 16px;
+    padding: 18px 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+  }
+  body.dark .modal { background: rgba(40,40,40,0.92); color: #fff; }
+  .modal h3 { margin: 0 0 8px; font-size: 18px; }
+  .modal p { margin: 0 0 14px; font-size: 14px; line-height: 1.6; opacity: 0.9; }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .btn {
+    border: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+  }
+  .btn-yes { background: #4aa3ff; color: #fff; }
+  .btn-no { background: rgba(0,0,0,0.08); }
+  body.dark .btn-no { background: rgba(255,255,255,0.12); color: #fff; }
+
+  /* 未滿 18 拒絕畫面 */
+  .blocked {
+    position: absolute;
+    inset: 0;
+    z-index: 4000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    background: #111;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+  }
+  .blocked .box {
+    max-width: 520px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 18px 16px;
+    line-height: 1.7;
   }
 </style>
 </head>
@@ -109,145 +189,252 @@
   <!-- 進度條 -->
   <div id="progressBar"><div id="progressValue"></div></div>
 
-  <!-- 控制按鈕 -->
+  <!-- 控制 -->
   <div class="controls">
-    <div class="control-btn" id="fontPlus">A+</div>
-    <div class="control-btn" id="fontMinus">A–</div>
+    <div class="control-btn" id="zoomOut">A–</div>
+    <div class="control-btn" id="zoomIn">A+</div>
     <div class="control-btn" id="modeToggle">🌙</div>
   </div>
 
   <div class="book" id="book"></div>
+  <div id="loading">PDF 重新渲染中…</div>
+
+  <!-- 18+ Modal（動態插入/移除） -->
+  <div id="ageModalRoot"></div>
+
+  <!-- 未滿 18 拒絕畫面 -->
+  <div class="blocked" id="blocked">
+    <div class="box">
+      <div style="font-size:18px; margin-bottom:6px;">無法進入</div>
+      <div style="opacity:.9; font-size:14px;">
+        本內容僅限年滿 18 歲者瀏覽。<br>
+        若你已年滿 18 歲，請重新整理並選擇「Yes」。
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <script>
-  const TEXT_URL = "說點兔赤-來都來了.txt";
+  // ====== 設定區 ======
+  const PDF_URL = "book.pdf";
+  const COVER_URL = "cover.png";
 
-  /* ✅ 封面頁（獨立，不來自 txt） */
-  function createCoverPage() {
-    const cover = document.createElement("div");
-    cover.className = "page cover";
-    cover.style.zIndex = 9999;
-    cover.innerHTML = `<img src="cover.png" alt="封面">`;
-    return cover;
+  // PDF 渲染倍率（A+/A- 會改這個）
+  let renderScale = 1.6;
+  const SCALE_MIN = 0.8;
+  const SCALE_MAX = 2.6;
+  const SCALE_STEP = 0.2;
+
+  // ====== 狀態 ======
+  const book = document.getElementById("book");
+  const loading = document.getElementById("loading");
+  const blocked = document.getElementById("blocked");
+
+  let pdfDoc = null;
+  let currentPage = 0;         // 0=封面，1..N=PDF頁（加上封面後的頁序）
+  let isRendering = false;
+  let allowed = false;
+
+  // ====== 工具 ======
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  function showLoading(show) {
+    loading.style.display = show ? "flex" : "none";
   }
-
-  /* 下載 TXT */
-  async function loadTextFile() {
-    const res = await fetch(TEXT_URL);
-    return await res.text();
-  }
-
-  /* 自動分頁 */
-  function paginateText(text, fontSize = 20) {
-    const pageHeight = window.innerHeight - 90;
-
-    const temp = document.createElement("div");
-    temp.style.position = "absolute";
-    temp.style.visibility = "hidden";
-    temp.style.width = "90%";
-    temp.style.fontSize = fontSize + "px";
-    temp.style.lineHeight = "1.8";
-    temp.style.fontFamily = "Noto Sans TC";
-    document.body.appendChild(temp);
-
-    const lines = text.split("\n");
-    let current = "";
-    let pages = [];
-
-    for (let line of lines) {
-      temp.innerHTML = current + line + "<br>";
-      if (temp.offsetHeight > pageHeight) {
-        pages.push(current);
-        current = line + "<br>";
-      } else {
-        current += line + "<br>";
-      }
-    }
-
-    pages.push(current);
-    temp.remove();
-    return pages;
-  }
-
-  /* 建立頁面 */
-  function buildPages(pages) {
-    const book = document.getElementById("book");
-    book.innerHTML = "";
-
-    // 1) 封面
-    const cover = createCoverPage();
-    book.appendChild(cover);
-
-    // 2) 正文頁
-    pages.forEach((text, i) => {
-      const page = document.createElement("div");
-      page.className = "page";
-      page.style.zIndex = pages.length - i;
-      page.innerHTML = text;
-      book.appendChild(page);
-    });
-  }
-
-  /* 翻頁控制 */
-  let currentPage = 0;
 
   function updateProgress() {
-    const totalPages = document.querySelectorAll(".page").length - 1; // 不含封面
-    const percent = totalPages <= 0 ? 0 : (currentPage / totalPages) * 100;
-    document.getElementById("progressValue").style.width = percent + "%";
+    const pages = document.querySelectorAll(".page");
+    const totalWithoutCover = Math.max(1, pages.length - 1);
+    const percent = (currentPage / totalWithoutCover) * 100;
+    document.getElementById("progressValue").style.width = clamp(percent, 0, 100) + "%";
   }
 
+  // ====== 18+ Modal ======
+  function showAgeModal() {
+    const root = document.getElementById("ageModalRoot");
+    root.innerHTML = `
+      <div class="modal-backdrop" id="ageBackdrop">
+        <div class="modal" role="dialog" aria-modal="true">
+          <h3>內容年齡確認</h3>
+          <p>請確認你是否已年滿 <b>18 歲</b>。</p>
+          <div class="modal-actions">
+            <button class="btn btn-no" id="ageNo">No</button>
+            <button class="btn btn-yes" id="ageYes">Yes</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("ageYes").onclick = () => {
+      localStorage.setItem("age_verified_18", "yes");
+      root.innerHTML = "";
+      allowed = true;
+      initApp(); // 開始載入 PDF
+    };
+
+    document.getElementById("ageNo").onclick = () => {
+      root.innerHTML = "";
+      allowed = false;
+      // 鎖住內容
+      blocked.style.display = "flex";
+    };
+  }
+
+  function checkAgeGate() {
+    const v = localStorage.getItem("age_verified_18");
+    if (v === "yes") {
+      allowed = true;
+      initApp();
+    } else {
+      showAgeModal();
+    }
+  }
+
+  // ====== PDF.js 初始化 ======
+  async function loadPDF() {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+  }
+
+  function addCover() {
+    const cover = document.createElement("div");
+    cover.className = "page cover";
+    cover.style.zIndex = 999999;
+    cover.innerHTML = `<img src="${COVER_URL}" alt="封面">`;
+    book.appendChild(cover);
+  }
+
+  async function renderAllPdfPages() {
+    // 清掉舊頁（保留容器 book，整個重建最簡單 & 不易錯）
+    book.innerHTML = "";
+    addCover();
+
+    // PDF 頁：依序渲染
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const pdfPage = await pdfDoc.getPage(i);
+      const viewport = pdfPage.getViewport({ scale: renderScale });
+
+      const canvas = document.createElement("canvas");
+      canvas.className = "pdf-canvas";
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await pdfPage.render({ canvasContext: ctx, viewport }).promise;
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "page";
+      // z-index：封面在最上面，其他由前到後遞減
+      wrapper.style.zIndex = (pdfDoc.numPages - i + 1);
+      wrapper.appendChild(canvas);
+
+      book.appendChild(wrapper);
+    }
+  }
+
+  function restoreFlipStateAfterRerender() {
+    const pages = document.querySelectorAll(".page");
+    // currentPage 指的是「包含封面」的索引
+    for (let i = 0; i < pages.length; i++) {
+      if (i < currentPage) pages[i].classList.add("flipped");
+      else pages[i].classList.remove("flipped");
+    }
+    updateProgress();
+  }
+
+  async function rerenderPdfKeepingPosition() {
+    if (isRendering) return;
+    isRendering = true;
+    showLoading(true);
+
+    try {
+      await renderAllPdfPages();
+      restoreFlipStateAfterRerender();
+    } finally {
+      showLoading(false);
+      isRendering = false;
+    }
+  }
+
+  // ====== 翻頁手勢 ======
   function attachFlipEvents() {
     let startX = 0;
 
     document.addEventListener("touchstart", e => {
+      if (!allowed) return;
       startX = e.touches[0].clientX;
-    });
+    }, { passive: true });
 
     document.addEventListener("touchend", e => {
+      if (!allowed) return;
       const endX = e.changedTouches[0].clientX;
       const diff = endX - startX;
       const pages = document.querySelectorAll(".page");
 
       if (Math.abs(diff) < 40) return;
 
+      // 左滑下一頁
       if (diff < 0 && currentPage < pages.length - 1) {
         pages[currentPage].classList.add("flipped");
         currentPage++;
         updateProgress();
-      } else if (diff > 0 && currentPage > 0) {
+      }
+      // 右滑上一頁
+      else if (diff > 0 && currentPage > 0) {
         currentPage--;
         pages[currentPage].classList.remove("flipped");
         updateProgress();
       }
-    });
+    }, { passive: true });
   }
 
-  /* 字體調整 */
-  let baseFont = 20;
-  function applyFont() {
-    document.querySelectorAll(".page:not(.cover)").forEach(p => {
-      p.style.fontSize = baseFont + "px";
-    });
-  }
-  document.getElementById("fontPlus").onclick = () => { baseFont += 2; applyFont(); };
-  document.getElementById("fontMinus").onclick = () => { if (baseFont > 12) baseFont -= 2; applyFont(); };
-
-  /* 夜間模式 */
+  // ====== 控制按鈕 ======
   document.getElementById("modeToggle").onclick = () => {
     document.body.classList.toggle("dark");
     document.getElementById("modeToggle").textContent =
       document.body.classList.contains("dark") ? "☀️" : "🌙";
   };
 
-  /* 主程序 */
-  (async () => {
-    const text = await loadTextFile();
-    const pages = paginateText(text, baseFont);
-    buildPages(pages);
-    attachFlipEvents();
-    updateProgress();
-  })();
-</script>
+  document.getElementById("zoomIn").onclick = async () => {
+    if (!allowed || isRendering) return;
+    renderScale = clamp(renderScale + SCALE_STEP, SCALE_MIN, SCALE_MAX);
+    await rerenderPdfKeepingPosition();
+  };
 
+  document.getElementById("zoomOut").onclick = async () => {
+    if (!allowed || isRendering) return;
+    renderScale = clamp(renderScale - SCALE_STEP, SCALE_MIN, SCALE_MAX);
+    await rerenderPdfKeepingPosition();
+  };
+
+  // ====== 主流程 ======
+  async function initApp() {
+    // 避免重複 init
+    if (pdfDoc) return;
+
+    showLoading(true);
+    try {
+      await loadPDF();
+      // 初次渲染
+      await renderAllPdfPages();
+      // 確保初始在封面
+      currentPage = 0;
+      restoreFlipStateAfterRerender();
+      attachFlipEvents();
+    } catch (err) {
+      console.error(err);
+      alert("PDF 載入失敗，請確認 book.pdf 與 index.html 在同資料夾，且使用 http server 開啟。");
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // 入口：先做 18+ 確認
+  checkAgeGate();
+</script>
 </body>
 </html>
